@@ -11,9 +11,12 @@ use phpseclib3\Crypt\PublicKeyLoader;
  */
 class OpenVpnAsWhmcsDockerClient
 {
-    private SSH2 $ssh;
-    private string $mode;
-    private string $sacliPath;
+    /** @var SSH2 */
+    private $ssh;
+    /** @var string */
+    private $mode;
+    /** @var string */
+    private $sacliPath;
 
     public function __construct(
         string $host,

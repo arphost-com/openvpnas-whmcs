@@ -11,7 +11,9 @@ This module is intended to automate common OpenVPN-AS customer lifecycle tasks f
 > - **Server Modules** (`/modules/servers/...`) used for provisioning services
 > - **Addon Modules** (`/modules/addons/...`) used for admin/client utility features
 >
-> This repository is designed to be installed as a **Server Module** unless your code states otherwise.
+> This repository ships both:
+> - Server module: `openvpnas_whmcs` (required)
+> - Addon module: `openvpnas_whmcs_admin` (optional)
 
 ---
 
@@ -118,10 +120,10 @@ Most WHMCS provisioning modules install here:
 ```
 
 **Example**
-If the module folder in this repo is named `openvpnas`, upload it to:
+Copy the server module folder from this repo to:
 
 ```
-/path/to/whmcs/modules/servers/openvpnas/
+/path/to/whmcs/modules/servers/openvpnas_whmcs/
 ```
 
 After upload, you should have something like:
@@ -129,13 +131,54 @@ After upload, you should have something like:
 ```
 modules/
   servers/
-    openvpnas/
-      openvpnas.php
+    openvpnas_whmcs/
+      openvpnas_whmcs.php
+      lib/
+      clientarea.tpl
       ...
 ```
 
-> If your repo uses a different structure (e.g. `/modules/addons/...`), place it accordingly.
-> Server modules will not appear in WHMCS unless they are inside `modules/servers/<name>/`.
+Optional addon module:
+
+```
+modules/
+  addons/
+    openvpnas_whmcs_admin/
+      openvpnas_whmcs_admin.php
+      ...
+```
+
+Server modules will not appear in WHMCS unless they are inside `modules/servers/<name>/`.
+
+Full install tree (recommended layout):
+
+```
+whmcs/
+  modules/
+    servers/
+      openvpnas_whmcs/
+        openvpnas_whmcs.php
+        lib/
+          OpenVpnAsWhmcsDockerClient.php
+        clientarea.tpl
+        README.md
+        LICENSE
+    addons/
+      openvpnas_whmcs_admin/
+        openvpnas_whmcs_admin.php
+```
+
+ZIP layout (extract, then copy the two folders into `modules/`):
+
+```
+openvpnas-whmcs/
+  openvpnas_whmcs.php
+  lib/
+  clientarea.tpl
+  addons/
+    openvpnas_whmcs_admin/
+      openvpnas_whmcs_admin.php
+```
 
 ---
 
@@ -164,12 +207,12 @@ If your module writes cache/log files inside its directory (not ideal, but somet
 1. Log into WHMCS Admin
 2. Go to: **Configuration → System Settings → Servers**
 3. Click **Add New Server**
-4. Under **Type**, select the module name (for example: `openvpnas`)
+4. Under **Type**, select the module name: `openvpnas_whmcs`
 
 If you **do not see the module** in the Type dropdown:
 
-* Confirm the folder is in `modules/servers/<module_name>/`
-* Confirm the main module file name matches WHMCS expectations (often `<module_name>.php`)
+* Confirm the folder is in `modules/servers/openvpnas_whmcs/`
+* Confirm the main module file name is `openvpnas_whmcs.php`
 * Check **Utilities → Logs → Activity Log** for PHP/module load errors
 
 ---
@@ -261,7 +304,7 @@ If you run multiple OpenVPN-AS nodes:
 3. Set **Product Type**: typically “Other” or “Hosting” (your preference)
 4. Go to the **Module Settings** tab:
 
-   * **Module Name**: select `openvpnas` (or your module name)
+   * **Module Name**: select `openvpnas_whmcs`
    * **Server Group**: select `OpenVPN-AS` (or choose the single server)
    * Fill in the module options:
 
@@ -461,17 +504,22 @@ WHMCS logs helpful for module debugging:
 If installed via git:
 
 ```bash
-cd /path/to/whmcs/modules/servers/openvpnas
+cd /path/to/whmcs/modules/servers/openvpnas_whmcs
 git pull
 ```
 
 If installed via ZIP:
 
 * Download latest ZIP
-* Replace files in `modules/servers/openvpnas/`
+* Replace files in `modules/servers/openvpnas_whmcs/`
 * Re-test a module command
 
 ---
+
+## Release Status
+
+* `v1.0.0` is production.
+* Other tags/branches are for testing.
 
 ## Support / Contributions
 
