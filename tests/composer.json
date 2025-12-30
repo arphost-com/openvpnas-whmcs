@@ -1,0 +1,8 @@
+{
+    "name": "arphost-com/openvpnas-whmcs-tests",
+    "description": "Smoke test dependencies for openvpnas-whmcs",
+    "require": {
+        "php": ">=8.0",
+        "phpseclib/phpseclib": "^3.0"
+    }
+}

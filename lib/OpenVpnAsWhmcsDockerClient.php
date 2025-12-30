@@ -6,31 +6,62 @@ use phpseclib3\Net\SSH2;
 use phpseclib3\Crypt\PublicKeyLoader;
 
 /**
- * SSH to Docker host, run docker exec openvpn-as sacli commands.
- * Compatible with OpenVPN-AS 3.0.2.
+ * SSH to host and run OpenVPN-AS sacli commands.
+ * Supports both Docker and direct (non-Docker) deployments.
  */
 class OpenVpnAsWhmcsDockerClient
 {
     private SSH2 $ssh;
+    private string $mode;
+    private string $sacliPath;
 
-    public function __construct(string $host, int $port, string $user, string $keyPath)
+    public function __construct(
+        string $host,
+        int $port,
+        string $user,
+        string $keyPath,
+        string $mode = 'docker',
+        string $sacliPath = '/usr/local/openvpn_as/scripts/sacli',
+        int $timeoutSeconds = 30
+    )
     {
         if (!file_exists($keyPath)) {
             throw new Exception("SSH key not found at: {$keyPath}");
         }
 
+        $mode = strtolower(trim($mode));
+        if (!in_array($mode, ['docker', 'direct'], true)) {
+            throw new Exception("Unsupported execution mode: {$mode}");
+        }
+
+        $sacliPath = trim($sacliPath);
+        if ($sacliPath === '') {
+            throw new Exception("sacli path is required.");
+        }
+
         $this->ssh = new SSH2($host, $port);
+        $this->ssh->setTimeout($timeoutSeconds);
         $key = PublicKeyLoader::load(file_get_contents($keyPath));
 
         if (!$this->ssh->login($user, $key)) {
             throw new Exception("SSH login failed for {$user}@{$host}:{$port}");
         }
+
+        $this->mode = $mode;
+        $this->sacliPath = $sacliPath;
     }
 
     private function execSacli(string $container, string $args): string
     {
-        $cmd = "docker exec " . escapeshellarg($container)
-             . " /usr/local/openvpn_as/scripts/sacli " . $args . " 2>&1";
+        if ($this->mode === 'docker') {
+            if (trim($container) === '') {
+                throw new Exception("Docker container name is required for docker mode.");
+            }
+            $cmd = "docker exec " . escapeshellarg($container)
+                 . " " . escapeshellarg($this->sacliPath) . " " . $args . " 2>&1";
+        } else {
+            $cmd = escapeshellarg($this->sacliPath) . " " . $args . " 2>&1";
+        }
 
         $out = $this->ssh->exec($cmd);
         $status = $this->ssh->getExitStatus();
@@ -121,5 +152,37 @@ class OpenVpnAsWhmcsDockerClient
         }
 
         return $profile;
+    }
+
+    public function getUserProps(string $container, string $username): array
+    {
+        $out = $this->execSacli($container,
+            "--user " . escapeshellarg($username) . " UserPropGetAll"
+        );
+
+        $parsed = $this->parseSacliOutput($out);
+        return is_array($parsed) ? $parsed : [];
+    }
+
+    private function parseSacliOutput(string $raw)
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        $normalized = $raw;
+        $normalized = preg_replace('/\bNone\b/', 'null', $normalized);
+        $normalized = preg_replace('/\bTrue\b/', 'true', $normalized);
+        $normalized = preg_replace('/\bFalse\b/', 'false', $normalized);
+        $normalized = preg_replace("/u'([^']*)'/", "'$1'", $normalized);
+        $normalized = str_replace("'", '"', $normalized);
+
+        $decoded = json_decode($normalized, true);
+        if (json_last_error() === JSON_ERROR_NONE) {
+            return $decoded;
+        }
+
+        return null;
     }
 }

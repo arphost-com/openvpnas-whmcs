@@ -76,6 +76,7 @@ If you don’t see a feature working, confirm:
 ### OpenVPN Access Server
 - OpenVPN Access Server (OpenVPN-AS) reachable from the WHMCS server
 - Admin/API user credentials for authentication to OpenVPN-AS
+- SSH access to the OpenVPN-AS host (Docker or direct install)
 
 ---
 
@@ -262,7 +263,17 @@ If you run multiple OpenVPN-AS nodes:
 
    * **Module Name**: select `openvpnas` (or your module name)
    * **Server Group**: select `OpenVPN-AS` (or choose the single server)
-   * Fill in any required module options shown
+   * Fill in the module options:
+
+     * **OpenVPN-AS Host (SSH)**: hostname/IP of the AS host
+     * **SSH Port/User/Key**: SSH access used for `sacli`
+     * **Execution Mode**:
+       * `docker` (default): run `sacli` inside the container
+       * `direct`: run `sacli` on the host (non-Docker installs)
+     * **Docker Container Name**: required only for `docker` mode
+     * **sacli Path**: default `/usr/local/openvpn_as/scripts/sacli`
+     * **Apply Changes (sacli start)**: enable only if your AS needs it
+     * **SSH Timeout (seconds)**: prevents long-running module actions
 
 #### Recommended Custom Fields
 
@@ -329,6 +340,65 @@ If you want a polished onboarding flow, consider adding:
 
 ---
 
+## Admin Addon (Client List)
+
+This repo includes an optional WHMCS addon module that lists all services using
+this server module in one place.
+
+Install:
+
+1. Copy `addons/openvpnas_whmcs_admin/` to:
+
+   ```
+   /path/to/whmcs/modules/addons/openvpnas_whmcs_admin/
+   ```
+
+2. In WHMCS Admin, go to **Configuration → System Settings → Addon Modules**.
+3. Activate **OpenVPN-AS Clients**.
+
+The addon shows service ID, client, status, VPN username, host, and basic warnings.
+Enable **Fetch live OpenVPN-AS data (SSH)** to show last login, last IP, disabled
+state, and the latest module log entry per service.
+
+---
+
+## Smoke Tests (CLI)
+
+A simple CLI smoke test is available for quick validation against a live
+OpenVPN-AS host. It uses the same SSH + `sacli` approach as the module.
+
+1. Copy the example env file and fill it in:
+
+   ```
+   cp tests/local.env.example tests/local.env
+   ```
+
+2. Run the test:
+
+   ```
+   php tests/smoke.php
+   ```
+
+`tests/local.env` is ignored by git. Use `OVPNAS_TEST_PROFILE=yes` if you want
+the test to fetch a user profile as part of the run.
+
+### Smoke Tests (Docker)
+
+You can run the smoke test inside a container (no local PHP required).
+
+1. Ensure `tests/local.env` is populated.
+2. Run:
+
+   ```
+   bash tests/docker/run-smoke.sh
+   ```
+
+This builds a small PHP image, installs test-only dependencies, and runs
+`php tests/smoke.php` inside the container. The script reads `OVPNAS_SSH_KEY`
+from `tests/local.env` and mounts that key into the container.
+
+---
+
 ## Troubleshooting
 
 ### Module not showing up in WHMCS
@@ -347,6 +417,12 @@ If you want a polished onboarding flow, consider adding:
   ```
 * Confirm firewall rules allow WHMCS → OpenVPN-AS on the correct port
 * Confirm DNS resolves correctly
+
+### Module command hangs or feels slow
+
+* Set **Apply Changes (sacli start)** to `no` unless your AS requires it.
+* Reduce **SSH Timeout (seconds)** to a lower value (e.g., 15–20).
+* Check **Utilities → Logs → Module Log** for the last request.
 
 ### Authentication errors
 

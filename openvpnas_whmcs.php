@@ -32,11 +32,11 @@ function openvpnas_whmcs_MetaData()
 function openvpnas_whmcs_ConfigOptions()
 {
     return [
-        "Docker Host" => [
+        "OpenVPN-AS Host (SSH)" => [
             "Type"        => "text",
             "Size"        => "40",
             "Default"     => "vpn-docker-host.yourdomain.com",
-            "Description" => "Docker host where OpenVPN-AS container runs",
+            "Description" => "Hostname or IP of the OpenVPN-AS host",
         ],
         "SSH Port" => [
             "Type"    => "text",
@@ -71,6 +71,30 @@ function openvpnas_whmcs_ConfigOptions()
             "Size"        => "60",
             "Default"     => "",
             "Description" => "Client VPN login URL (you enter manually)",
+        ],
+        "Execution Mode" => [
+            "Type"        => "dropdown",
+            "Options"     => "docker,direct",
+            "Default"     => "docker",
+            "Description" => "docker = run sacli inside container, direct = run sacli on host",
+        ],
+        "sacli Path" => [
+            "Type"        => "text",
+            "Size"        => "80",
+            "Default"     => "/usr/local/openvpn_as/scripts/sacli",
+            "Description" => "Full path to sacli on the OpenVPN-AS host",
+        ],
+        "Apply Changes (sacli start)" => [
+            "Type"        => "dropdown",
+            "Options"     => "no,yes",
+            "Default"     => "no",
+            "Description" => "Enable only if your AS requires a restart after changes",
+        ],
+        "SSH Timeout (seconds)" => [
+            "Type"        => "text",
+            "Size"        => "5",
+            "Default"     => "30",
+            "Description" => "SSH command timeout to avoid hanging requests",
         ],
     ];
 }
@@ -129,7 +153,7 @@ function openvpnas_whmcs_CreateAccount($params)
         }
 
         $ovpn->setPassword($container, $username, $finalPassword);
-        $ovpn->refresh($container);
+        _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         // Re-save username + final password (belt & suspenders)
         localAPI('UpdateClientProduct', [
@@ -159,7 +183,7 @@ function openvpnas_whmcs_ChangePassword($params)
         }
 
         $ovpn->setPassword($container, $username, $newPass);
-        $ovpn->refresh($container);
+        _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         // ✅ keep WHMCS synced
         localAPI('UpdateClientProduct', [
@@ -184,7 +208,7 @@ function openvpnas_whmcs_SuspendAccount($params)
         $container = $params['configoption5'] ?? 'openvpn-as';
 
         $ovpn->setDisabled($container, $username, true);
-        $ovpn->refresh($container);
+        _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         return "success";
     } catch (Exception $e) {
@@ -201,7 +225,7 @@ function openvpnas_whmcs_UnsuspendAccount($params)
         $container = $params['configoption5'] ?? 'openvpn-as';
 
         $ovpn->setDisabled($container, $username, false);
-        $ovpn->refresh($container);
+        _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         return "success";
     } catch (Exception $e) {
@@ -218,7 +242,7 @@ function openvpnas_whmcs_TerminateAccount($params)
         $container = $params['configoption5'] ?? 'openvpn-as';
 
         $ovpn->deleteUser($container, $username);
-        $ovpn->refresh($container);
+        _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         return "success";
     } catch (Exception $e) {
@@ -293,7 +317,7 @@ function openvpnas_whmcs_ClientArea($params)
 
                 // Set password in AS
                 $ovpn->setPassword($container, $username, $newPass);
-                $ovpn->refresh($container);
+                _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
                 // ✅ Update WHMCS service creds too
                 localAPI('UpdateClientProduct', [
@@ -356,10 +380,28 @@ function _openvpnas_whmcs_username($params)
 
 function _openvpnas_whmcs_client($params)
 {
+    $mode = strtolower(trim($params['configoption8'] ?? 'docker'));
+    $sacliPath = trim($params['configoption9'] ?? '/usr/local/openvpn_as/scripts/sacli');
+    $timeoutSeconds = (int)($params['configoption11'] ?? 30);
+    if ($timeoutSeconds <= 0) {
+        $timeoutSeconds = 30;
+    }
+
     return new OpenVpnAsWhmcsDockerClient(
         $params['configoption1'],
         (int)$params['configoption2'],
         $params['configoption3'],
-        $params['configoption4']
+        $params['configoption4'],
+        $mode,
+        $sacliPath,
+        $timeoutSeconds
     );
+}
+
+function _openvpnas_whmcs_refresh($ovpn, $container, $params)
+{
+    $apply = strtolower(trim($params['configoption10'] ?? 'no'));
+    if ($apply === 'yes') {
+        $ovpn->refresh($container);
+    }
 }
