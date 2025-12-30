@@ -11,6 +11,7 @@ use phpseclib3\Crypt\PublicKeyLoader;
  */
 class OpenVpnAsWhmcsDockerClient
 {
+    private const DEFAULT_SACLI_PATH = '/usr/local/openvpn_as/scripts/sacli';
     /** @var SSH2 */
     private $ssh;
     /** @var string */
@@ -24,7 +25,7 @@ class OpenVpnAsWhmcsDockerClient
         string $user,
         string $keyPath,
         string $mode = 'docker',
-        string $sacliPath = '/usr/local/openvpn_as/scripts/sacli',
+        string $sacliPath = self::DEFAULT_SACLI_PATH,
         int $timeoutSeconds = 30
     )
     {
@@ -39,10 +40,10 @@ class OpenVpnAsWhmcsDockerClient
 
         $sacliPath = trim($sacliPath);
         if ($sacliPath === '') {
-            throw new Exception("sacli path is required.");
+            $sacliPath = self::DEFAULT_SACLI_PATH;
         }
 
-        $this->ssh = new SSH2($host, $port);
+        $this->ssh = new SSH2($host, $port, $timeoutSeconds);
         $this->ssh->setTimeout($timeoutSeconds);
         $key = PublicKeyLoader::load(file_get_contents($keyPath));
 

@@ -382,6 +382,9 @@ function _openvpnas_whmcs_client($params)
 {
     $mode = strtolower(trim($params['configoption8'] ?? 'docker'));
     $sacliPath = trim($params['configoption9'] ?? '/usr/local/openvpn_as/scripts/sacli');
+    if ($sacliPath === '') {
+        $sacliPath = '/usr/local/openvpn_as/scripts/sacli';
+    }
     $timeoutSeconds = (int)($params['configoption11'] ?? 30);
     if ($timeoutSeconds <= 0) {
         $timeoutSeconds = 30;
