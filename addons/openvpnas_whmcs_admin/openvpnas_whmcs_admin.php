@@ -10,7 +10,7 @@ function openvpnas_whmcs_admin_config()
     return [
         "name"        => "OpenVPN-AS Clients",
         "description" => "Admin view for OpenVPN-AS services managed by this module.",
-        "author"      => "arphost-com",
+        "author"      => "ARPHost, LLC",
         "version"     => "1.0.0",
         "language"    => "english",
         "fields"      => [
