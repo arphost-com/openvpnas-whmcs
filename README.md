@@ -521,7 +521,7 @@ If installed via ZIP:
 
 ## Release Status
 
-* `v1.0.0` is production.
+* `v1.0.1` is production.
 * Other tags/branches are for testing.
 
 ## Support / Contributions
