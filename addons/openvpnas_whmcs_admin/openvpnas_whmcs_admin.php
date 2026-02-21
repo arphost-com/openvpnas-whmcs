@@ -41,6 +41,45 @@ function openvpnas_whmcs_admin_output($vars)
     $moduleFolder = $vars['moduleconfig']['server_module_folder'] ?? 'openvpnas_whmcs';
     $moduleFolder = trim($moduleFolder) !== '' ? trim($moduleFolder) : 'openvpnas_whmcs';
 
+    // Handle sync action
+    if (isset($_POST['action']) && $_POST['action'] === 'sync_usernames') {
+        $synced = 0;
+        $errors = [];
+
+        $services = Capsule::table('tblhosting')
+            ->join('tblclients', 'tblclients.id', '=', 'tblhosting.userid')
+            ->join('tblproducts', 'tblproducts.id', '=', 'tblhosting.packageid')
+            ->select('tblhosting.id as service_id', 'tblhosting.username', 'tblclients.email')
+            ->where('tblproducts.servertype', $moduleName)
+            ->get();
+
+        foreach ($services as $service) {
+            if (trim((string)$service->username) === '') {
+                // Email-based username
+                $email = strtolower(trim((string)$service->email));
+                $email = preg_replace('/[^a-z0-9@._-]/', '', $email);
+
+                if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    try {
+                        Capsule::table('tblhosting')
+                            ->where('id', $service->service_id)
+                            ->update(['username' => $email]);
+                        $synced++;
+                    } catch (Exception $e) {
+                        $errors[] = "Service {$service->service_id}: " . $e->getMessage();
+                    }
+                }
+            }
+        }
+
+        echo '<div class="alert alert-success">Synced ' . $synced . ' service(s) with missing usernames.</div>';
+        if ($errors) {
+            foreach ($errors as $err) {
+                echo '<div class="alert alert-warning">' . htmlspecialchars($err) . '</div>';
+            }
+        }
+    }
+
     $live = isset($_GET['live']) && $_GET['live'] === '1';
     $liveErrors = [];
 
@@ -81,7 +120,8 @@ function openvpnas_whmcs_admin_output($vars)
     echo '<h2>OpenVPN-AS Clients</h2>';
     echo '<p>Services using the <strong>openvpnas_whmcs</strong> server module.</p>';
 
-    echo '<form method="get" style="margin: 10px 0;">'
+    echo '<div style="margin: 10px 0; display: flex; gap: 10px;">';
+    echo '<form method="get" style="margin: 0;">'
         . '<input type="hidden" name="module" value="openvpnas_whmcs_admin" />'
         . '<label style="margin-right: 8px;">'
         . '<input type="checkbox" name="live" value="1"' . ($live ? ' checked' : '') . '> '
@@ -89,6 +129,12 @@ function openvpnas_whmcs_admin_output($vars)
         . '</label>'
         . '<button type="submit" class="btn btn-sm btn-default">Refresh</button>'
         . '</form>';
+    echo '<form method="post" style="margin: 0;" onsubmit="return confirm(\'Sync usernames for all services with missing usernames?\');">'
+        . '<input type="hidden" name="module" value="openvpnas_whmcs_admin" />'
+        . '<input type="hidden" name="action" value="sync_usernames" />'
+        . '<button type="submit" class="btn btn-sm btn-primary">Sync Missing Usernames</button>'
+        . '</form>';
+    echo '</div>';
 
     if ($liveErrors) {
         foreach ($liveErrors as $msg) {

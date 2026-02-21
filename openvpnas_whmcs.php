@@ -19,6 +19,7 @@ if (!file_exists($clientFile)) {
 require_once $clientFile;
 
 use ArpHost\OpenVpnAsWhmcs\OpenVpnAsWhmcsDockerClient;
+use WHMCS\Database\Capsule;
 
 function openvpnas_whmcs_MetaData()
 {
@@ -134,13 +135,8 @@ function openvpnas_whmcs_CreateAccount($params)
         // Create user + set temp password
         $ovpn->createUser($container, $username, $tempPassword);
 
-        // ✅ ALWAYS store username + password into service so admin/client see it
-        localAPI('UpdateClientProduct', [
-            'serviceid' => $params['serviceid'],
-            'username'  => $username,
-            'password'  => $tempPassword,
-            'password2' => $tempPassword,
-        ]);
+        // ✅ Store username + password directly in database
+        _openvpnas_whmcs_updateServiceCreds($params['serviceid'], $username, $tempPassword);
 
         // FINAL SYNC: read back WHMCS final stored pw, set AS to match
         $finalPassword = $tempPassword;
@@ -156,12 +152,7 @@ function openvpnas_whmcs_CreateAccount($params)
         _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         // Re-save username + final password (belt & suspenders)
-        localAPI('UpdateClientProduct', [
-            'serviceid' => $params['serviceid'],
-            'username'  => $username,
-            'password'  => $finalPassword,
-            'password2' => $finalPassword,
-        ]);
+        _openvpnas_whmcs_updateServiceCreds($params['serviceid'], $username, $finalPassword);
 
         return "success";
     } catch (Exception $e) {
@@ -186,12 +177,7 @@ function openvpnas_whmcs_ChangePassword($params)
         _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         // ✅ keep WHMCS synced
-        localAPI('UpdateClientProduct', [
-            'serviceid' => $params['serviceid'],
-            'username'  => $username,
-            'password'  => $newPass,
-            'password2' => $newPass,
-        ]);
+        _openvpnas_whmcs_updateServiceCreds($params['serviceid'], $username, $newPass);
 
         return "success";
     } catch (Exception $e) {
@@ -320,12 +306,7 @@ function openvpnas_whmcs_ClientArea($params)
                 _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
                 // ✅ Update WHMCS service creds too
-                localAPI('UpdateClientProduct', [
-                    'serviceid' => $params['serviceid'],
-                    'username'  => $username,
-                    'password'  => $newPass,
-                    'password2' => $newPass,
-                ]);
+                _openvpnas_whmcs_updateServiceCreds($params['serviceid'], $username, $newPass);
 
                 $successMsg = "VPN password updated successfully.";
             } catch (Exception $e) {
@@ -364,6 +345,30 @@ function openvpnas_whmcs_ClientArea($params)
 }
 
 /* ---------- Helpers ---------- */
+
+/**
+ * Update service username and password directly in database
+ * This ensures the username is always stored, even if localAPI fails
+ */
+function _openvpnas_whmcs_updateServiceCreds($serviceId, $username, $password = null)
+{
+    $data = ['username' => $username];
+    if ($password !== null) {
+        $data['password'] = encrypt($password);
+    }
+
+    Capsule::table('tblhosting')
+        ->where('id', $serviceId)
+        ->update($data);
+
+    // Also try localAPI for compatibility with hooks/events
+    $apiData = ['serviceid' => $serviceId, 'username' => $username];
+    if ($password !== null) {
+        $apiData['password'] = $password;
+        $apiData['password2'] = $password;
+    }
+    localAPI('UpdateClientProduct', $apiData);
+}
 
 function _openvpnas_whmcs_username($params)
 {
