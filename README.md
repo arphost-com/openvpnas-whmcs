@@ -16,8 +16,8 @@ This module is intended to automate common OpenVPN-AS customer lifecycle tasks f
 > - Addon module: `openvpnas_whmcs_admin` (optional)
 <img width="1209" height="621" alt="Screenshot 2026-01-01 at 6 15 59 AM" src="https://github.com/user-attachments/assets/a715deb8-9a9f-4ee2-a9cd-cdd87680ae9c" />
 <img width="1223" height="268" alt="Screenshot 2026-01-01 at 6 15 02 AM" src="https://github.com/user-attachments/assets/90ce7aa4-966c-44a5-82d7-a719aab83526" />
+<img width="1291" height="350" alt="Screenshot 2026-02-20 at 7 04 41 PM" src="https://github.com/user-attachments/assets/52053357-082f-4074-a823-e263eff61ba0" />
 <img width="972" height="571" alt="Screenshot 2026-02-20 at 6 40 17 PM" src="https://github.com/user-attachments/assets/dc2b4829-d7d1-4438-a5e4-9522b39ec274" />
-
 
 ---
 
