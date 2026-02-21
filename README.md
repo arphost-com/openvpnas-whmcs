@@ -444,6 +444,11 @@ This builds a small PHP image, installs test-only dependencies, and runs
 `php tests/smoke.php` inside the container. The script reads `OVPNAS_SSH_KEY`
 from `tests/local.env` and mounts that key into the container.
 
+**Security Compliance:**
+- Docker image runs as non-root user (`phpuser` UID 1001) to prevent privilege escalation (DS002)
+- Includes health check for container monitoring (DS026)
+- Passes Docker security scans for production deployment
+
 ---
 
 ## Troubleshooting

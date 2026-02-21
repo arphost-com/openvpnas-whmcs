@@ -31,6 +31,10 @@ This repository has no build tooling or automated test runner.
 - Smoke tests:
   - Local PHP: `php tests/smoke.php`
   - Docker: `bash tests/docker/run-smoke.sh`
+- Docker security compliance:
+  - Test Dockerfile runs as non-root user (UID 1001)
+  - Includes HEALTHCHECK for container monitoring
+  - Passes Docker security scans (DS002, DS026)
 
 ## Commit & Pull Request Guidelines
 
