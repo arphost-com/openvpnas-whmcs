@@ -1,0 +1,25 @@
+{
+    "schema": "1.0",
+    "type": "whmcs-servers",
+    "name": "openvpnas_whmcs",
+    "license": "GPL-3.0",
+    "category": "provisioning",
+    "description": {
+        "name": "OpenVPN Access Server",
+        "tagline": "Sells OpenVPN Access Server logins, with profile download and password change in the client area.",
+        "long": "OpenVPN Access Server by ARPHost creates, suspends and removes OpenVPN Access Server users over SSH, in Docker or directly on the host. The client gets their login, a one click .ovpn profile download and a password change form in the client area."
+    },
+    "logo": {
+        "filename": "logo.png"
+    },
+    "support": {
+        "homepage": "https://arphost.com/",
+        "email": "support@arphost.com"
+    },
+    "authors": [
+        {
+            "name": "ARPHost, LLC",
+            "homepage": "https://arphost.com/"
+        }
+    ]
+}

@@ -1,0 +1,25 @@
+{
+    "schema": "1.0",
+    "type": "whmcs-addons",
+    "name": "openvpnas_whmcs_admin",
+    "license": "GPL-3.0",
+    "category": "utilities",
+    "description": {
+        "name": "OpenVPN Access Server Admin",
+        "tagline": "Admin view of every OpenVPN Access Server service, with live login and status details.",
+        "long": "OpenVPN Access Server Admin by ARPHost lists every service on the OpenVPN Access Server module with its VPN username, host and warnings, can fetch last login, last IP and disabled state live over SSH, and fills in missing usernames."
+    },
+    "logo": {
+        "filename": "logo.png"
+    },
+    "support": {
+        "homepage": "https://arphost.com/",
+        "email": "support@arphost.com"
+    },
+    "authors": [
+        {
+            "name": "ARPHost, LLC",
+            "homepage": "https://arphost.com/"
+        }
+    ]
+}

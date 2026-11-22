@@ -1,6 +1,6 @@
 <?php
 /**
- * WHMCS Server Provisioning Module: openvpnas-whmcs (Docker)
+ * WHMCS Server Provisioning Module: OpenVPN Access Server, by ARPHost
  *
  * Fixes:
  * - Username (email) is always written to WHMCS service so admin+client see it
@@ -24,7 +24,7 @@ use WHMCS\Database\Capsule;
 function openvpnas_whmcs_MetaData()
 {
     return [
-        'DisplayName'    => 'openvpnas-whmcs',
+        'DisplayName'    => 'OpenVPN Access Server',
         'APIVersion'     => '1.1',
         'RequiresServer' => true,
     ];
@@ -155,8 +155,8 @@ function openvpnas_whmcs_CreateAccount($params)
         _openvpnas_whmcs_updateServiceCreds($params['serviceid'], $username, $finalPassword);
 
         return "success";
-    } catch (Exception $e) {
-        logModuleCall('openvpnas_whmcs', __FUNCTION__, $params, $e->getMessage(), $e->getTraceAsString());
+    } catch (\Throwable $e) {
+        _openvpnas_whmcs_log(__FUNCTION__, $params, $e);
         return "OpenVPN-AS provisioning failed: " . $e->getMessage();
     }
 }
@@ -180,8 +180,8 @@ function openvpnas_whmcs_ChangePassword($params)
         _openvpnas_whmcs_updateServiceCreds($params['serviceid'], $username, $newPass);
 
         return "success";
-    } catch (Exception $e) {
-        logModuleCall('openvpnas_whmcs', __FUNCTION__, $params, $e->getMessage(), $e->getTraceAsString());
+    } catch (\Throwable $e) {
+        _openvpnas_whmcs_log(__FUNCTION__, $params, $e);
         return "ChangePassword failed: " . $e->getMessage();
     }
 }
@@ -197,8 +197,8 @@ function openvpnas_whmcs_SuspendAccount($params)
         _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         return "success";
-    } catch (Exception $e) {
-        logModuleCall('openvpnas_whmcs', __FUNCTION__, $params, $e->getMessage(), $e->getTraceAsString());
+    } catch (\Throwable $e) {
+        _openvpnas_whmcs_log(__FUNCTION__, $params, $e);
         return "Suspend failed: " . $e->getMessage();
     }
 }
@@ -214,8 +214,8 @@ function openvpnas_whmcs_UnsuspendAccount($params)
         _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         return "success";
-    } catch (Exception $e) {
-        logModuleCall('openvpnas_whmcs', __FUNCTION__, $params, $e->getMessage(), $e->getTraceAsString());
+    } catch (\Throwable $e) {
+        _openvpnas_whmcs_log(__FUNCTION__, $params, $e);
         return "Unsuspend failed: " . $e->getMessage();
     }
 }
@@ -231,8 +231,8 @@ function openvpnas_whmcs_TerminateAccount($params)
         _openvpnas_whmcs_refresh($ovpn, $container, $params);
 
         return "success";
-    } catch (Exception $e) {
-        logModuleCall('openvpnas_whmcs', __FUNCTION__, $params, $e->getMessage(), $e->getTraceAsString());
+    } catch (\Throwable $e) {
+        _openvpnas_whmcs_log(__FUNCTION__, $params, $e);
         return "Terminate failed: " . $e->getMessage();
     }
 }
@@ -269,23 +269,30 @@ function openvpnas_whmcs_ClientArea($params)
             echo $profileText;
             exit;
 
-        } catch (Exception $e) {
-            logModuleCall('openvpnas_whmcs', __FUNCTION__, $params, $e->getMessage(), $e->getTraceAsString());
+        } catch (\Throwable $e) {
+            _openvpnas_whmcs_log(__FUNCTION__, $params, $e);
             return [
                 'tabOverviewReplacementTemplate' => 'clientarea.tpl',
                 'templateVariables' => [
-                    'error' => "Unable to generate profile: " . $e->getMessage(),
+                    'error' => "Unable to generate your VPN profile right now. Please try again or open a support ticket.",
                 ],
             ];
         }
     }
 
     $vpnUrl = trim($params['configoption7'] ?? '');
+    $scheme = strtolower((string) parse_url($vpnUrl, PHP_URL_SCHEME));
+    if ($vpnUrl !== '' && !in_array($scheme, ['http', 'https'], true)) {
+        $vpnUrl = '';
+    }
     $successMsg = '';
     $errorMsg   = '';
 
     // Client-side password change
     if ($action === 'changepassword' && $method === 'POST') {
+        if (function_exists('check_token')) {
+            check_token('WHMCS.default');
+        }
         $newPass = trim($_POST['new_vpn_password'] ?? '');
         $confirm = trim($_POST['confirm_vpn_password'] ?? '');
 
@@ -309,9 +316,9 @@ function openvpnas_whmcs_ClientArea($params)
                 _openvpnas_whmcs_updateServiceCreds($params['serviceid'], $username, $newPass);
 
                 $successMsg = "VPN password updated successfully.";
-            } catch (Exception $e) {
-                logModuleCall('openvpnas_whmcs', __FUNCTION__, $params, $e->getMessage(), $e->getTraceAsString());
-                $errorMsg = "Unable to change VPN password: " . $e->getMessage();
+            } catch (\Throwable $e) {
+                _openvpnas_whmcs_log(__FUNCTION__, $params, $e);
+                $errorMsg = "Unable to change your VPN password right now. Please try again or open a support ticket.";
             }
         }
     }
@@ -345,6 +352,26 @@ function openvpnas_whmcs_ClientArea($params)
 }
 
 /* ---------- Helpers ---------- */
+
+/**
+ * Log a module error with passwords and key paths masked out of the log.
+ */
+function _openvpnas_whmcs_log($function, $params, \Throwable $e)
+{
+    $mask = [];
+    foreach (['password', 'serverpassword', 'serveraccesshash'] as $k) {
+        if (!empty($params[$k]) && is_string($params[$k])) {
+            $mask[] = $params[$k];
+        }
+    }
+    foreach (['new_vpn_password', 'confirm_vpn_password'] as $k) {
+        if (!empty($_POST[$k]) && is_string($_POST[$k])) {
+            $mask[] = $_POST[$k];
+            $mask[] = trim($_POST[$k]);
+        }
+    }
+    logModuleCall('openvpnas_whmcs', $function, $params, $e->getMessage(), $e->getTraceAsString(), array_values(array_unique($mask)));
+}
 
 /**
  * Update service username and password directly in database

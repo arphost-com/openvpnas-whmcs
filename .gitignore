@@ -9,3 +9,18 @@ tests/local.env
 vendor/
 tests/vendor/
 tests/composer.lock
+
+# Agent, access and private files stay out of git
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+ACCESS.md
+.claude/
+.codex/
+.cc-scratch/
+.env.*
+!.env.example
+*.pem
+*.key
+*.bak
+*.orig

@@ -8,10 +8,10 @@ if (!defined("WHMCS")) {
 function openvpnas_whmcs_admin_config()
 {
     return [
-        "name"        => "OpenVPN-AS Clients",
-        "description" => "Admin view for OpenVPN-AS services managed by this module.",
-        "author"      => "ARPHost, LLC",
-        "version"     => "1.0.0",
+        "name"        => "OpenVPN Access Server Admin",
+        "description" => "Admin view of every OpenVPN Access Server service, with live login and status details.",
+        "author"      => "ARPHost",
+        "version"     => "1.0.1",
         "language"    => "english",
         "fields"      => [
             "server_module_folder" => [
@@ -39,10 +39,17 @@ function openvpnas_whmcs_admin_output($vars)
 {
     $moduleName = 'openvpnas_whmcs';
     $moduleFolder = $vars['moduleconfig']['server_module_folder'] ?? 'openvpnas_whmcs';
-    $moduleFolder = trim($moduleFolder) !== '' ? trim($moduleFolder) : 'openvpnas_whmcs';
+    $moduleFolder = trim((string) $moduleFolder);
+    // Only a plain folder name, so the setting cannot point outside modules/servers.
+    if (!preg_match('/^[A-Za-z0-9_]+$/', $moduleFolder)) {
+        $moduleFolder = 'openvpnas_whmcs';
+    }
 
     // Handle sync action
     if (isset($_POST['action']) && $_POST['action'] === 'sync_usernames') {
+        if (function_exists('check_token')) {
+            check_token('WHMCS.admin.default');
+        }
         $synced = 0;
         $errors = [];
 
@@ -65,7 +72,7 @@ function openvpnas_whmcs_admin_output($vars)
                             ->where('id', $service->service_id)
                             ->update(['username' => $email]);
                         $synced++;
-                    } catch (Exception $e) {
+                    } catch (\Throwable $e) {
                         $errors[] = "Service {$service->service_id}: " . $e->getMessage();
                     }
                 }
@@ -75,7 +82,7 @@ function openvpnas_whmcs_admin_output($vars)
         echo '<div class="alert alert-success">Synced ' . $synced . ' service(s) with missing usernames.</div>';
         if ($errors) {
             foreach ($errors as $err) {
-                echo '<div class="alert alert-warning">' . htmlspecialchars($err) . '</div>';
+                echo '<div class="alert alert-warning">' . htmlspecialchars((string) $err, ENT_QUOTES, 'UTF-8') . '</div>';
             }
         }
     }
@@ -117,7 +124,7 @@ function openvpnas_whmcs_admin_output($vars)
         ->orderBy('tblhosting.id', 'desc')
         ->get();
 
-    echo '<h2>OpenVPN-AS Clients</h2>';
+    echo '<h2>OpenVPN Access Server Admin</h2>';
     echo '<p>Services using the <strong>openvpnas_whmcs</strong> server module.</p>';
 
     echo '<div style="margin: 10px 0; display: flex; gap: 10px;">';
@@ -132,13 +139,14 @@ function openvpnas_whmcs_admin_output($vars)
     echo '<form method="post" style="margin: 0;" onsubmit="return confirm(\'Sync usernames for all services with missing usernames?\');">'
         . '<input type="hidden" name="module" value="openvpnas_whmcs_admin" />'
         . '<input type="hidden" name="action" value="sync_usernames" />'
+        . (function_exists('generate_token') ? generate_token('form') : '')
         . '<button type="submit" class="btn btn-sm btn-primary">Sync Missing Usernames</button>'
         . '</form>';
     echo '</div>';
 
     if ($liveErrors) {
         foreach ($liveErrors as $msg) {
-            echo '<div class="alert alert-warning">' . htmlspecialchars($msg) . '</div>';
+            echo '<div class="alert alert-warning">' . htmlspecialchars((string) $msg, ENT_QUOTES, 'UTF-8') . '</div>';
         }
     }
 
@@ -163,6 +171,11 @@ function openvpnas_whmcs_admin_output($vars)
         . '<th>Last Module Log</th>'
         . '<th>Warnings</th>'
         . '</tr></thead><tbody>';
+
+    $clients = [];
+    $esc = static function ($v) {
+        return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+    };
 
     foreach ($services as $service) {
         $warnings = [];
@@ -191,15 +204,20 @@ function openvpnas_whmcs_admin_output($vars)
                     $timeout = 30;
                 }
 
-                $client = new ArpHost\OpenVpnAsWhmcs\OpenVpnAsWhmcsDockerClient(
-                    (string)$service->host,
-                    (int)($service->ssh_port ?: 22),
-                    (string)$service->ssh_user,
-                    (string)$service->ssh_key,
-                    $mode,
-                    $sacliPath,
-                    $timeout
-                );
+                // One SSH connection per server, not one per service.
+                $connKey = implode('|', [$service->host, $service->ssh_port, $service->ssh_user, $service->ssh_key, $mode, $sacliPath]);
+                if (!isset($clients[$connKey])) {
+                    $clients[$connKey] = new ArpHost\OpenVpnAsWhmcs\OpenVpnAsWhmcsDockerClient(
+                        (string)$service->host,
+                        (int)($service->ssh_port ?: 22),
+                        (string)$service->ssh_user,
+                        (string)$service->ssh_key,
+                        $mode,
+                        $sacliPath,
+                        $timeout
+                    );
+                }
+                $client = $clients[$connKey];
 
                 $container = (string)$service->container_name;
                 $username = trim((string)$service->vpn_username);
@@ -209,7 +227,7 @@ function openvpnas_whmcs_admin_output($vars)
                     $lastIp = $props['last_successful_login_ip'] ?? ($props['last_login_ip'] ?? 'n/a');
                     $disabled = isset($props['disabled']) ? (string)$props['disabled'] : 'n/a';
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 $warnings[] = 'Live fetch failed';
             }
         }
@@ -228,7 +246,7 @@ function openvpnas_whmcs_admin_output($vars)
                     $moduleLog .= ' - ' . $resp;
                 }
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $moduleLog = 'n/a';
         }
 
@@ -237,18 +255,18 @@ function openvpnas_whmcs_admin_output($vars)
 
         echo '<tr>'
             . '<td>' . (int)$service->service_id . '</td>'
-            . '<td>' . htmlspecialchars($clientName) . '</td>'
-            . '<td>' . htmlspecialchars($service->email) . '</td>'
-            . '<td>' . htmlspecialchars($service->product_name) . '</td>'
-            . '<td>' . htmlspecialchars($service->service_status) . '</td>'
-            . '<td>' . htmlspecialchars($service->vpn_username) . '</td>'
-            . '<td>' . htmlspecialchars($service->host) . '</td>'
-            . '<td>' . htmlspecialchars($service->mode) . '</td>'
-            . '<td>' . htmlspecialchars((string)$lastLogin) . '</td>'
-            . '<td>' . htmlspecialchars((string)$lastIp) . '</td>'
-            . '<td>' . htmlspecialchars((string)$disabled) . '</td>'
-            . '<td>' . htmlspecialchars((string)$moduleLog) . '</td>'
-            . '<td>' . htmlspecialchars($warningText) . '</td>'
+            . '<td>' . $esc($clientName) . '</td>'
+            . '<td>' . $esc($service->email) . '</td>'
+            . '<td>' . $esc($service->product_name) . '</td>'
+            . '<td>' . $esc($service->service_status) . '</td>'
+            . '<td>' . $esc($service->vpn_username) . '</td>'
+            . '<td>' . $esc($service->host) . '</td>'
+            . '<td>' . $esc($service->mode) . '</td>'
+            . '<td>' . $esc($lastLogin) . '</td>'
+            . '<td>' . $esc($lastIp) . '</td>'
+            . '<td>' . $esc($disabled) . '</td>'
+            . '<td>' . $esc($moduleLog) . '</td>'
+            . '<td>' . $esc($warningText) . '</td>'
             . '</tr>';
     }
 
