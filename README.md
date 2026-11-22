@@ -211,7 +211,7 @@ If your module writes cache/log files inside its directory (not ideal, but somet
 1. Log into WHMCS Admin
 2. Go to: **Configuration → System Settings → Servers**
 3. Click **Add New Server**
-4. Under **Type**, select the module name: `openvpnas_whmcs`
+4. Under **Type**, select **OpenVPN Access Server** (folder `openvpnas_whmcs`)
 
 If you **do not see the module** in the Type dropdown:
 
@@ -279,7 +279,7 @@ Fill in:
 * **Name**: `OpenVPN-AS 1` (anything)
 * **Hostname**: `vpn.example.com` (or IP)
 * **IP Address**: optional (WHMCS field; depends on your module)
-* **Type**: select your module (example: `openvpnas`)
+* **Type**: select **OpenVPN Access Server**
 * **Username / Password**: set to your OpenVPN-AS API/admin user (or use module access key fields if your module uses them)
 * **Secure**: enable if your module uses HTTPS calls
 
@@ -308,7 +308,7 @@ If you run multiple OpenVPN-AS nodes:
 3. Set **Product Type**: typically “Other” or “Hosting” (your preference)
 4. Go to the **Module Settings** tab:
 
-   * **Module Name**: select `openvpnas_whmcs`
+   * **Module Name**: select **OpenVPN Access Server** (folder `openvpnas_whmcs`)
    * **Server Group**: select `OpenVPN-AS` (or choose the single server)
    * Fill in the module options:
 
@@ -401,7 +401,7 @@ Install:
    ```
 
 2. In WHMCS Admin, go to **Configuration → System Settings → Addon Modules**.
-3. Activate **OpenVPN-AS Clients**.
+3. Activate **OpenVPN Access Server Admin**.
 
 The addon shows service ID, client, status, VPN username, host, and basic warnings.
 Enable **Fetch live OpenVPN-AS data (SSH)** to show last login, last IP, disabled

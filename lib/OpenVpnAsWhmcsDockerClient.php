@@ -2,17 +2,24 @@
 namespace ArpHost\OpenVpnAsWhmcs;
 
 use Exception;
-use phpseclib3\Net\SSH2;
-use phpseclib3\Crypt\PublicKeyLoader;
 
 /**
  * SSH to host and run OpenVPN-AS sacli commands.
  * Supports both Docker and direct (non-Docker) deployments.
+ *
+ * Uses the phpseclib that WHMCS bundles, picked at runtime: phpseclib 3
+ * (namespace phpseclib3) on WHMCS 9.x and phpseclib 2 (namespace phpseclib)
+ * on WHMCS 8.x, so the module loads on either.
  */
 class OpenVpnAsWhmcsDockerClient
 {
     private const DEFAULT_SACLI_PATH = '/usr/local/openvpn_as/scripts/sacli';
-    /** @var SSH2 */
+    private const SSH2_V3 = '\\phpseclib3\\Net\\SSH2';
+    private const KEY_LOADER_V3 = '\\phpseclib3\\Crypt\\PublicKeyLoader';
+    private const PRIVATE_KEY_V3 = '\\phpseclib3\\Crypt\\Common\\PrivateKey';
+    private const SSH2_V2 = '\\phpseclib\\Net\\SSH2';
+    private const RSA_V2 = '\\phpseclib\\Crypt\\RSA';
+    /** @var object phpseclib SSH2 */
     private $ssh;
     /** @var string */
     private $mode;
@@ -43,16 +50,79 @@ class OpenVpnAsWhmcsDockerClient
             $sacliPath = self::DEFAULT_SACLI_PATH;
         }
 
-        $this->ssh = new SSH2($host, $port, $timeoutSeconds);
-        $this->ssh->setTimeout($timeoutSeconds);
-        $key = PublicKeyLoader::load(file_get_contents($keyPath));
+        if ($timeoutSeconds <= 0) {
+            $timeoutSeconds = 30;
+        }
 
-        if (!$this->ssh->login($user, $key)) {
+        $version = self::phpseclibVersion();
+
+        $keyContents = is_readable($keyPath) ? file_get_contents($keyPath) : false;
+        if ($keyContents === false || trim($keyContents) === '') {
+            throw new Exception("SSH key at {$keyPath} is not readable by the WHMCS PHP user.");
+        }
+        $key = self::loadPrivateKey($version, $keyContents, $keyPath);
+
+        $sshClass = $version === 3 ? self::SSH2_V3 : self::SSH2_V2;
+
+        // phpseclib 3 throws on connection and auth problems, phpseclib 2
+        // returns false. Both end up as one clear Exception.
+        try {
+            $this->ssh = new $sshClass($host, $port, $timeoutSeconds);
+            $this->ssh->setTimeout($timeoutSeconds);
+            $loggedIn = $this->ssh->login($user, $key);
+        } catch (\Throwable $e) {
+            throw new Exception("SSH connection failed for {$user}@{$host}:{$port}: " . $e->getMessage(), 0, $e);
+        }
+
+        if (!$loggedIn) {
             throw new Exception("SSH login failed for {$user}@{$host}:{$port}");
         }
 
         $this->mode = $mode;
         $this->sacliPath = $sacliPath;
+    }
+
+    /**
+     * Which bundled phpseclib major version is available (3 preferred, then 2).
+     */
+    public static function phpseclibVersion(): int
+    {
+        if (class_exists(self::SSH2_V3) && class_exists(self::KEY_LOADER_V3)) {
+            return 3;
+        }
+        if (class_exists(self::SSH2_V2) && class_exists(self::RSA_V2)) {
+            return 2;
+        }
+        throw new Exception('phpseclib is not available. This module needs the phpseclib 3 (WHMCS 9) or phpseclib 2 (WHMCS 8) library from the WHMCS vendor directory.');
+    }
+
+    /**
+     * Load the SSH private key. phpseclib 3 accepts RSA, ECDSA and ed25519 keys; phpseclib 2 is RSA only.
+     *
+     * @return object key accepted by SSH2::login()
+     */
+    private static function loadPrivateKey(int $version, string $keyContents, string $keyPath)
+    {
+        if ($version === 3) {
+            $loader = self::KEY_LOADER_V3;
+            $privateKeyClass = self::PRIVATE_KEY_V3;
+            try {
+                $key = $loader::load($keyContents);
+            } catch (\Throwable $e) {
+                throw new Exception("Failed to load SSH key from: {$keyPath} (" . $e->getMessage() . ')', 0, $e);
+            }
+            if (!($key instanceof $privateKeyClass)) {
+                throw new Exception("SSH key at {$keyPath} is not a private key.");
+            }
+            return $key;
+        }
+
+        $rsaClass = self::RSA_V2;
+        $key = new $rsaClass();
+        if ($key->loadKey($keyContents) === false) {
+            throw new Exception("Failed to load SSH key from: {$keyPath}. phpseclib 2 (WHMCS 8) only supports RSA keys.");
+        }
+        return $key;
     }
 
     private function execSacli(string $container, string $args): string
@@ -67,7 +137,7 @@ class OpenVpnAsWhmcsDockerClient
             $cmd = escapeshellarg($this->sacliPath) . " " . $args . " 2>&1";
         }
 
-        $out = $this->ssh->exec($cmd);
+        $out = (string) $this->ssh->exec($cmd);
         $status = $this->ssh->getExitStatus();
 
         if ($status !== 0) {

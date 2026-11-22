@@ -1,9 +1,9 @@
 {if $success}
-    <div class="alert alert-success mb-3">{$success}</div>
+    <div class="alert alert-success mb-3">{$success|escape:'html'}</div>
 {/if}
 
 {if $error}
-    <div class="alert alert-danger mb-3">{$error}</div>
+    <div class="alert alert-danger mb-3">{$error|escape:'html'}</div>
 {/if}
 
 <div class="card mb-4">
@@ -19,8 +19,8 @@
                     <div>
                         <div class="text-muted small">VPN Portal</div>
                         {if $vpnUrl neq ""}
-                            <a href="{$vpnUrl}" target="_blank" rel="noopener noreferrer">
-                                {$vpnUrl}
+                            <a href="{$vpnUrl|escape:'html'}" target="_blank" rel="noopener noreferrer">
+                                {$vpnUrl|escape:'html'}
                             </a>
                         {else}
                             <span class="text-muted">(Not set yet)</span>
@@ -29,7 +29,7 @@
 
                     {if $vpnUrl neq ""}
                         <a class="btn btn-outline-primary btn-sm"
-                           href="{$vpnUrl}" target="_blank" rel="noopener noreferrer">
+                           href="{$vpnUrl|escape:'html'}" target="_blank" rel="noopener noreferrer">
                             Open VPN Portal
                         </a>
                     {/if}
@@ -41,7 +41,7 @@
                 <input type="text"
                        class="form-control font-monospace"
                        readonly
-                       value="{$vpnUser}">
+                       value="{$vpnUser|escape:'html'}">
             </div>
 
             <div class="col-md-6">
@@ -49,7 +49,7 @@
                 <input type="text"
                        class="form-control font-monospace"
                        readonly
-                       value="{$vpnPass}">
+                       value="{$vpnPass|escape:'html'}">
             </div>
 
             <div class="col-12">
@@ -63,7 +63,7 @@
                 </p>
 
                 <a class="btn btn-primary"
-                   href="clientarea.php?action=productdetails&id={$serviceid}&customAction=downloadprofile">
+                   href="clientarea.php?action=productdetails&id={$serviceid|intval}&customAction=downloadprofile">
                     Download VPN Profile
                 </a>
             </div>
@@ -80,7 +80,8 @@
 
     <div class="card-body">
         <form method="post"
-              action="clientarea.php?action=productdetails&id={$serviceid}&customAction=changepassword">
+              action="clientarea.php?action=productdetails&id={$serviceid|intval}&customAction=changepassword">
+            <input type="hidden" name="token" value="{$token|escape:'html'}">
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">New Password</label>
